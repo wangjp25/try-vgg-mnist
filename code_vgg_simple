@@ -1,0 +1,102 @@
+import tensorflow.examples.tutorials.mnist.input_data as input_data
+mnist = input_data.read_data_sets('MNIST_data/',one_hot=True)
+
+import tensorflow as tf
+import numpy as np
+from functools import reduce
+
+X_pre = tf.placeholder(tf.float32, [None, 784], name='x')/255.*2.-1.  # normalize to (-1, 1)
+X = tf.reshape(X_pre, [-1, 28, 28, 1], name='X')                 # (batch, height, width, channel)
+
+y = tf.placeholder(tf.float32,[None, 10], name='y')
+keep_prob = tf.placeholder(tf.float32)
+
+#initialize variables
+def get_conv_var(filter_size, in_channels, out_channels, name):
+    initial_value = tf.truncated_normal([filter_size, filter_size, in_channels, out_channels], 0.0, 0.001) #mean=0.0 std=0.1
+    filters = tf.Variable(initial_value,name=name + "_filters")
+
+    initial_value = tf.truncated_normal([out_channels], .0, .001)
+    biases = tf.Variable(initial_value,name=name + "_biases")
+
+    return filters, biases
+
+def get_fc_var(in_size, out_size, name):
+    initial_value = tf.truncated_normal([in_size, out_size], 0.0, 0.001)
+    weights = tf.Variable(initial_value, name=name + "_weights")
+
+    initial_value = tf.truncated_normal([out_size], .0, .001)
+    biases = tf.Variable(initial_value, name=name + "_biases")
+
+    return weights, biases
+
+
+#define convolution and pooling,
+def avg_pool(X, name):
+    return tf.nn.avg_pool(X, ksize=[1, 7, 7, 1], strides=[1, 7, 7, 1], padding='SAME', name=name)
+
+def max_pool(X, name):
+    return tf.nn.max_pool(X, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name=name)
+
+def conv_layer(X, in_channels, out_channels, name):
+    with tf.variable_scope(name):
+        filt, conv_biases = get_conv_var(3, in_channels, out_channels, name)
+
+        conv = tf.nn.conv2d(X, filt, [1, 1, 1, 1], padding='SAME')
+        bias = tf.nn.bias_add(conv, conv_biases)
+        relu = tf.nn.relu(bias)
+    return relu
+
+def fc_layer(X, in_size, out_size, name):
+    with tf.variable_scope(name):
+        weights, biases = get_fc_var(in_size, out_size, name)
+
+        x = tf.reshape(X, [-1, in_size])
+        fc = tf.nn.bias_add(tf.matmul(x, weights), biases)
+    return fc
+
+
+conv1_1 = conv_layer(X, 1, 16, "conv1_1") #28*28*16
+
+conv2_1 = conv_layer(conv1_1, 16, 32, "conv2_1") #28*28*32
+pool2 = max_pool(conv2_1, 'pool2') #14*14*32
+
+conv3_1 = conv_layer(pool2, 32, 64, "conv3_1")
+conv3_2 = conv_layer(conv3_1, 64, 64, "conv3_2")
+pool3 = max_pool(conv3_2, 'pool3') #7*7*64
+
+conv4_1 = conv_layer(pool3, 64, 128, "conv4_1")
+conv4_2 = conv_layer(conv4_1, 128, 128, "conv4_2")
+
+conv5_1 = conv_layer(conv4_2, 128, 128, "conv5_1")
+conv5_2 = conv_layer(conv5_1, 128, 128, "conv5_2")
+
+pool5 = avg_pool(conv5_4, 'pool5') #Global Average Pooling 1*1*512
+
+fc6 = fc_layer(conv5_2 , 6272, 256, "fc6")
+relu6 = tf.nn.relu(fc6)
+relu6 = tf.nn.dropout(relu6, keep_prob)
+
+fc7 = fc_layer(relu6, 256, 256, "fc7")
+relu7 = tf.nn.relu(fc7)
+relu7 = tf.nn.dropout(relu7, keep_prob)
+
+fc8 = fc_layer(relu7, 256, 10, "fc8")
+prob = tf.nn.softmax(fc8, name="prob")
+
+cross_entropy= tf.nn.sparse_softmax_cross_entropy_with_logits( logits=prob, labels=y)
+loss = tf.reduce_mean(cross_entropy,name='Train_Cost')
+train_op = tf.train.AdamOptimizer(0.001).minimize(loss)
+
+correct_predict = tf.equal(tf.argmax(prob,1),tf.argmax(y,1))
+accuracy = tf.reduce_mean(tf.cast(correct_predict,'float'))
+
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+for step in range(30000):
+    batch_X_train,batch_y_train = mnist.train.next_batch(100)
+    _, loss_ = sess.run([train_op, loss], feed_dict={X_pre:batch_X_train, y:batch_y_train, keep_prob:0.5})
+
+    if step % 10 == 0:
+        accuracy_ = sess.run(accuracy, feed_dict={X_pre:mnist.test.images[:2000], y:mnist.test.labels[:2000], keep_prob:1.0})
+print('Step:', step, '| train loss: %.4f' % loss_, '| test accuracy: %.2f' % accuracy_)
