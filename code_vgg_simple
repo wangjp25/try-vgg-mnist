@@ -2,8 +2,6 @@ import tensorflow.examples.tutorials.mnist.input_data as input_data
 mnist = input_data.read_data_sets('MNIST_data/',one_hot=True)
 
 import tensorflow as tf
-import numpy as np
-from functools import reduce
 
 X_pre = tf.placeholder(tf.float32, [None, 784], name='x')        # have already normalized to (-1, 1)
 X = tf.reshape(X_pre, [-1, 28, 28, 1], name='X')                 # (batch, height, width, channel)
@@ -99,4 +97,4 @@ for step in range(30000):
 
     if step % 10 == 0:
         accuracy_ = sess.run(accuracy, feed_dict={X_pre:mnist.test.images[:2000], y:mnist.test.labels[:2000], keep_prob:1.0})
-print('Step:', step, '| train loss: %.4f' % loss_, '| test accuracy: %.2f' % accuracy_)
+        print('Step:', step, '| train loss: %.4f' % loss_, '| test accuracy: %.2f' % accuracy_)
